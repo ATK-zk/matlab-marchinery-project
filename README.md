@@ -11,6 +11,6 @@ This MATLAB script analyzes the kinematics (displacement, velocity, and accelera
 
 ## How to Run
 
-1.  Open `cam_analysis.m` in MATLAB.
+1.  Open `marchinery_s.m` in MATLAB.
 2.  Adjust parameters in the "ค่าคงที่และพารามิเตอร์" section if needed (e.g., `L_low`, `L_high`, `omega_val`).
 3.  Run the script. The plots will be generated, and a summary table will be printed in the Command Window.
