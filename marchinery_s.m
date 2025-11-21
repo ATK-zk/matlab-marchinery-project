@@ -1,207 +1,237 @@
-%% ======================== CAM Profile Analysis: Cycloidal Motion ========================
-% วิเคราะห์โปรไฟล์ cam แบบ cycloidal สำหรับระบบวาล์ว Low-Lift & High-Lift
+%% Two Independent Cam Lobes (Separate Profiles, Shared Base Circle)
+clear; clc; close all; format long g;
 
-clear; clc; format long g;
-set(0, 'DefaultAxesFontSize', 11, 'DefaultAxesFontName', 'Arial', ...
-       'DefaultTextFontSize', 11, 'DefaultTextFontName', 'Arial');
+%% -------------------- Shared base circle --------------------
+R_base    = 20e-3;                     % Base circle radius
+theta_samp = linspace(0, 2*pi, 1200);
+x_base = R_base * cos(theta_samp);
+y_base = R_base * sin(theta_samp);
 
-%% ========================= ค่าคงที่และพารามิเตอร์ =============================
+L_tan = 30e-3;                         % Tangent length for construction
+phi    = linspace(0, 2*pi, 2400);      % Ellipse sampling
 
-deg = pi/180;               % Conversion factor: degree to radian
-L_low  = 10e-3;             % Valve lift Low-Lift [m]
-L_high = 10e-3;             % Valve lift High-Lift [m]
+%% -------------------- Lobe 1 parameters --------------------
+theta_start1 = 64.6*pi/180;
+theta_end1   = -64.6*pi/180;
+a1 = 10e-3; b1 = 5e-3; offset1 = 25e-3; theta_peak1 = 0*pi/180;
 
-% Low-Lift profile angles
-theta0_low      = 100 * deg;
-beta_low_rise   = 52.75 * deg;
-beta_low_return = 52.75 * deg;
-theta1_low      = theta0_low + beta_low_rise;
-theta2_low      = theta1_low;
-theta3_low      = theta2_low + beta_low_return;
+%% -------------------- Lobe 2 parameters --------------------
+theta_start2 = 53.1*pi/180;
+theta_end2   = -53.1*pi/180;
+a2 = 5e-3; b2 = 5e-3; offset2 = 25e-3; theta_peak2 = 0*pi/180;
+%% -------------------- Build Lobe 1 --------------------
+[x_lobe1, y_lobe1] = build_lobe(theta_start1, theta_end1, R_base, L_tan, ...
+    x_base, y_base, a1, b1, offset1, theta_peak1, phi);
 
-% High-Lift profile angles
-theta0_high     = 130 * deg;
-beta_high_rise  = 64.6 * deg;
-beta_high_return = 64.6 * deg;
-theta1_high     = theta0_high + beta_high_rise;
-theta2_high     = theta1_high;
-theta3_high     = theta2_high + beta_high_return;
+%% -------------------- Build Lobe 2 --------------------
+[x_lobe2, y_lobe2] = build_lobe(theta_start2, theta_end2, R_base, L_tan, ...
+    x_base, y_base, a2, b2, offset2, theta_peak2, phi);
 
-%% ======================== Symbolic Definitions & Derivatives ==============
+%% -------------------- Plot lobes separately --------------------
+figure('Name','Independent Cam Lobes'); hold on;
+plot(x_lobe1*1e3, y_lobe1*1e3, 'g-', 'LineWidth', 2);
+plot(x_lobe2*1e3, y_lobe2*1e3, 'c-', 'LineWidth', 2);
+axis equal; grid on;
+xlabel('X (mm)'); ylabel('Y (mm)');
+title('Two Independent Cam Lobes (Separate Profiles)');
+legend('Lobe 1','Lobe 2');
 
-syms theta omega real
+%% ==================== Local function ====================
+function [x_lobe, y_lobe] = build_lobe(theta_start, theta_end, R_base, L_tan, ...
+    x_base, y_base, a_ellipse, b_ellipse, offset, theta_peak, phi)
 
-% Cycloidal motion functions
-rise = @(th, th0, beta, L) L * ((th - th0) / beta - sin(2*pi*(th - th0)/beta) / (2*pi));
-ret  = @(th, th2, beta, L) L * (1 - (th - th2) / beta + sin(2*pi*(th - th2)/beta) / (2*pi));
+    % Ellipse center and rotation (per lobe)
+    ellipse_center = offset * [cos(theta_peak); sin(theta_peak)];
+    theta_rot = theta_peak - pi/2;
+    Rrot = [cos(theta_rot), -sin(theta_rot); sin(theta_rot), cos(theta_rot)];
+    x_local = a_ellipse * cos(phi);
+    y_local = b_ellipse * sin(phi);
+    E = Rrot * [x_local; y_local];
+    x_ellipse = E(1,:) + ellipse_center(1);
+    y_ellipse = E(2,:) + ellipse_center(2);
 
-% Position profiles (symbolic piecewise)
-s_low = piecewise(...
-    theta < theta0_low,        0, ...
-    theta < theta1_low,        rise(theta, theta0_low, beta_low_rise, L_low), ...
-    theta < theta3_low,        ret(theta, theta2_low, beta_low_return, L_low), ...
-    theta < 2*pi,              0, 0);
+    % Tangent points on base
+    x0_start = R_base * cos(theta_start);
+    y0_start = R_base * sin(theta_start);
+    x0_end   = R_base * cos(theta_end);
+    y0_end   = R_base * sin(theta_end);
 
-s_high = piecewise(...
-    theta < theta0_high,       0, ...
-    theta < theta1_high,       rise(theta, theta0_high, beta_high_rise, L_high), ...
-    theta < theta3_high,       ret(theta, theta2_high, beta_high_return, L_high), ...
-    theta < 2*pi,              0, 0);
+    % Tangent directions (unit)
+    dx_start = -sin(theta_start);  dy_start =  cos(theta_start);
+    dx_end   = -sin(theta_end);    dy_end   =  cos(theta_end);
+    t1_dir = [dx_start; dy_start] / hypot(dx_start, dy_start);
+    t2_dir = [dx_end;   dy_end]   / hypot(dx_end,   dy_end);
 
-% Derivatives
-ds_dtheta_low   = diff(s_low, theta);
-d2s_dtheta_low  = diff(s_low, theta, 2);
-ds_dtheta_high  = diff(s_high, theta);
-d2s_dtheta_high = diff(s_high, theta, 2);
+    % Intersections: ellipse vs infinite tangents
+    tan1_pt = [x0_start; y0_start];
+    tan2_pt = [x0_end;   y0_end];
+    rel1 = [x_ellipse; y_ellipse] - tan1_pt;
+    rel2 = [x_ellipse; y_ellipse] - tan2_pt;
+    dist1 = rel1(1,:).*t1_dir(2) - rel1(2,:).*t1_dir(1);
+    dist2 = rel2(1,:).*t2_dir(2) - rel2(2,:).*t2_dir(1);
 
-% Convert to time derivatives: v = (ds/dθ)*ω, a = (d²s/dθ²)*ω²
-v_low   = ds_dtheta_low  * omega;
-a_low   = d2s_dtheta_low * omega^2;
-v_high  = ds_dtheta_high * omega;
-a_high  = d2s_dtheta_high * omega^2;
+    c1 = find(abs(diff(sign(dist1))) > 1);
+    c2 = find(abs(diff(sign(dist2))) > 1);
+    if isempty(c1) || isempty(c2)
+        error('Ellipse does not intersect both tangent lines for given angles.');
+    end
+    i1 = c1(1); i2 = c2(1);
 
-% Generate numeric functions
-matlabFunction(s_low,  'Vars', {theta},        'File', 's_low_func');
-matlabFunction(s_high, 'Vars', {theta},        'File', 's_high_func');
-matlabFunction(v_low,  'Vars', {theta, omega}, 'File', 'v_low_func');
-matlabFunction(v_high, 'Vars', {theta, omega}, 'File', 'v_high_func');
-matlabFunction(a_low,  'Vars', {theta, omega}, 'File', 'a_low_func');
-matlabFunction(a_high, 'Vars', {theta, omega}, 'File', 'a_high_func');
+    % Refine intersection points (linear interpolation)
+    tlin1 = dist1(i1) / (dist1(i1) - dist1(i1+1));
+    p1 = [x_ellipse(i1) + tlin1*(x_ellipse(i1+1)-x_ellipse(i1));
+          y_ellipse(i1) + tlin1*(y_ellipse(i1+1)-y_ellipse(i1))];
+    tlin2 = dist2(i2) / (dist2(i2) - dist2(i2+1));
+    p2 = [x_ellipse(i2) + tlin2*(x_ellipse(i2+1)-x_ellipse(i2));
+          y_ellipse(i2) + tlin2*(y_ellipse(i2+1)-y_ellipse(i2))];
 
-% Create function handles with vectorization support
-wrapTheta = @(th) mod(th, 2*pi);
-s_low_fun  = @(th)     arrayfun(@(x) s_low_func( wrapTheta(x) ), th);
-v_low_fun  = @(th, om) arrayfun(@(x) v_low_func( wrapTheta(x), om ), th);
-a_low_fun  = @(th, om) arrayfun(@(x) a_low_func( wrapTheta(x), om ), th);
-s_high_fun = @(th)     arrayfun(@(x) s_high_func( wrapTheta(x) ), th);
-v_high_fun = @(th, om) arrayfun(@(x) v_high_func( wrapTheta(x), om ), th);
-a_high_fun = @(th, om) arrayfun(@(x) a_high_func( wrapTheta(x), om ), th);
+    % Keep the further (longer) ellipse arc between p1 and p2
+    if i1 < i2
+        idx_arc = [1:i1, i2:length(phi)];
+    else
+        idx_arc = i2:i1;
+    end
+    x_arc = x_ellipse(idx_arc);
+    y_arc = y_ellipse(idx_arc);
 
-%% ====================== Data Preparation at 1000 rpm ======================
+    % Trim tangent lines to ellipse contact points
+    x_t1 = linspace(x0_start, p1(1), 80);
+    y_t1 = linspace(y0_start, p1(2), 80);
+    x_t2 = linspace(x0_end,   p2(1), 80);
+    y_t2 = linspace(y0_end,   p2(2), 80);
 
-omega_val = 2*pi * 1000 / 60;       % Convert 1000 rpm to rad/s
-theta_samp = linspace(0, 2*pi, 1500);
-theta_deg = theta_samp * 180 / pi;
+    % Trim base circle: remove the shorter arc between the tangent points
+    ang_base = mod(atan2(y_base, x_base), 2*pi);
+    theta1 = mod(theta_start, 2*pi);
+    theta2 = mod(theta_end,   2*pi);
+    delta = mod(theta2 - theta1, 2*pi);
 
-% Calculate follower motion
-s_low_num  = s_low_fun(theta_samp);
-v_low_num  = v_low_fun(theta_samp, omega_val);
-a_low_num  = a_low_fun(theta_samp, omega_val);
-s_high_num = s_high_fun(theta_samp);
-v_high_num = v_high_fun(theta_samp, omega_val);
-a_high_num = a_high_fun(theta_samp, omega_val);
+    if delta < pi
+        between = mod(ang_base - theta1, 2*pi) <= delta;
+    else
+        span = 2*pi - delta;
+        between = mod(ang_base - theta2, 2*pi) <= span;
+    end
+    mask_keep_base = ~between;
+    x_base_trim = x_base(mask_keep_base);
+    y_base_trim = y_base(mask_keep_base);
 
-% Lever arm ratio (follower to valve)
-ratio = 37.4 / 38.3;
-s_valve_low  = -ratio * s_low_num;
-v_valve_low  = -ratio * v_low_num;
-a_valve_low  = -ratio * a_low_num;
-s_valve_high = -ratio * s_high_num;
-v_valve_high = -ratio * v_high_num;
-a_valve_high = -ratio * a_high_num;
+    % Assemble continuous lobe (sequence: base -> tan2 -> ellipse -> tan1)
+    x_lobe = [x_base_trim, x_t2(2:end), x_arc(2:end), x_t1(2:end)];
+    y_lobe = [y_base_trim, y_t2(2:end), y_arc(2:end), y_t1(2:end)];
+end
 
-%% ======================== Plotting (3x2 subplots) ==========================
 
-fig = figure('Position', [100, 100, 1200, 850]);
+%% Lift vs Cam Angle (0–360°) for Two Independent Lobes
+% Assumes x_lobe1, y_lobe1, x_lobe2, y_lobe2 exist from prior construction.
 
-% Follower - Position
+R_base = 20e-3;  % base circle radius (same as used in lobe scripts)
+
+% --- Helper: compute angle (0–360°) and lift (mm), sorted by angle ---
+function [theta_deg_sorted, lift_mm_sorted] = lift_profile_0_360(x_lobe, y_lobe, R_base)
+    theta_deg = mod(rad2deg(atan2(y_lobe, x_lobe)), 360);  % wrap to [0,360)
+    r = hypot(x_lobe, y_lobe);
+    lift_mm = (r - R_base) * 1e3;                          % mm
+    [theta_deg_sorted, idx] = sort(theta_deg);
+    lift_mm_sorted = lift_mm(idx);
+end
+
+% --- Lobe 1 ---
+[theta1_deg, lift1_mm] = lift_profile_0_360(x_lobe1, y_lobe1, R_base);
+
+% --- Lobe 2 ---
+[theta2_deg, lift2_mm] = lift_profile_0_360(x_lobe2, y_lobe2, R_base);
+
+% --- Plot both (0–360°) ---
+figure('Name','Lift vs Cam Angle (0–360°)'); hold on;
+plot(theta1_deg, lift1_mm, 'b-', 'LineWidth', 2);
+plot(theta2_deg, lift2_mm, 'r-', 'LineWidth', 2);
+grid on; xlim([0 360]);
+xlabel('Cam Angle (deg)'); ylabel('Lift (mm)');
+title('Lift vs Cam Angle (0–360°) for Two Independent Lobes');
+legend('Lobe 1','Lobe 2','Location','best');
+
+%% ==================== Lift Analysis and Dynamics ====================
+% Continue from your lobe construction + lift plotting code
+
+omega_val = 2*pi*1000/60;   % rad/s at 1000 rpm
+ratio = 37.4/38.3;          % lever arm ratio follower->valve
+
+% Interpolate lift onto uniform angle grid [0,360]
+theta_grid = linspace(0,360,1500);
+theta_rad  = theta_grid*pi/180;
+
+% Interpolation helper
+lift_interp = @(theta_deg,lift_mm,theta_grid) ...
+    interp1(theta_deg, lift_mm/1e3, theta_grid, 'linear', 0); % convert mm->m
+
+lift1 = lift_interp(theta1_deg,lift1_mm,theta_grid); % lobe1 lift [m]
+lift2 = lift_interp(theta2_deg,lift2_mm,theta_grid); % lobe2 lift [m]
+
+% Time step per sample
+dt = (theta_rad(2)-theta_rad(1))/omega_val;
+
+% Follower velocity/acceleration
+v1 = gradient(lift1,dt); a1 = gradient(v1,dt);
+v2 = gradient(lift2,dt); a2 = gradient(v2,dt);
+
+% Valve motion
+s_valve1 = -ratio*lift1; v_valve1 = -ratio*v1; a_valve1 = -ratio*a1;
+s_valve2 = -ratio*lift2; v_valve2 = -ratio*v2; a_valve2 = -ratio*a2;
+
+%% ==================== Plotting ====================
+figure('Position',[100,100,1200,850]);
+
+% Follower displacement
 subplot(3,2,1);
-plot(theta_deg, s_low_num*1e3, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, s_high_num*1e3, 'r-', 'LineWidth', 1.5);
-ylabel('Lift (mm)', 'FontWeight', 'bold');
-title('Follower Displacement', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
+plot(theta_grid,lift2*1e3,'b-',theta_grid,lift1*1e3,'r-','LineWidth',1.5);
+ylabel('Lift (mm)'); title('Follower Displacement');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]);
 
-% Follower - Velocity
+% Follower velocity
 subplot(3,2,2);
-plot(theta_deg, v_low_num, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, v_high_num, 'r-', 'LineWidth', 1.5);
-ylabel('Velocity (m/s)', 'FontWeight', 'bold');
-title('Follower Velocity', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
+plot(theta_grid,v2,'b-',theta_grid,v1,'r-','LineWidth',1.5);
+ylabel('Velocity (m/s)'); title('Follower Velocity');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]);
 
-% Follower - Acceleration
+% Follower acceleration
 subplot(3,2,3);
-plot(theta_deg, a_low_num, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, a_high_num, 'r-', 'LineWidth', 1.5);
-ylabel('Acceleration (m/s²)', 'FontWeight', 'bold');
-title('Follower Acceleration', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
-xlabel('Cam Angle (°)', 'FontWeight', 'bold');
+plot(theta_grid,a2,'b-',theta_grid,a1,'r-','LineWidth',1.5);
+ylabel('Acceleration (m/s²)'); title('Follower Acceleration');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]); xlabel('Cam Angle (°)');
 
-% Valve - Position
+% Valve displacement
 subplot(3,2,4);
-plot(theta_deg, s_valve_low*1e3, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, s_valve_high*1e3, 'r-', 'LineWidth', 1.5);
-ylabel('Lift (mm)', 'FontWeight', 'bold');
-title('Valve Displacement', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
+plot(theta_grid,s_valve2*1e3,'b-',theta_grid,s_valve1*1e3,'r-','LineWidth',1.5);
+ylabel('Lift (mm)'); title('Valve Displacement');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]);
 
-% Valve - Velocity
+% Valve velocity
 subplot(3,2,5);
-plot(theta_deg, v_valve_low, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, v_valve_high, 'r-', 'LineWidth', 1.5);
-ylabel('Velocity (m/s)', 'FontWeight', 'bold');
-title('Valve Velocity', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
-xlabel('Cam Angle (°)', 'FontWeight', 'bold');
+plot(theta_grid,v_valve2,'b-',theta_grid,v_valve1,'r-','LineWidth',1.5);
+ylabel('Velocity (m/s)'); title('Valve Velocity');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]); xlabel('Cam Angle (°)');
 
-% Valve - Acceleration
+% Valve acceleration
 subplot(3,2,6);
-plot(theta_deg, a_valve_low, 'b-', 'LineWidth', 1.5); hold on;
-plot(theta_deg, a_valve_high, 'r-', 'LineWidth', 1.5);
-ylabel('Acceleration (m/s²)', 'FontWeight', 'bold');
-title('Valve Acceleration', 'FontWeight', 'bold');
-legend('Low', 'High', 'Location', 'Best', 'FontSize', 10);
-grid on; xlim([0 360]);
-xlabel('Cam Angle (°)', 'FontWeight', 'bold');
+plot(theta_grid,a_valve2,'b-',theta_grid,a_valve1,'r-','LineWidth',1.5);
+ylabel('Acceleration (m/s²)'); title('Valve Acceleration');
+legend('Lobe 2','Lobe 1'); grid on; xlim([0 360]); xlabel('Cam Angle (°)');
 
-%% ======================== Summary Results ==================================
+%% ==================== Summary ====================
+[max_lift2,idx_s2] = max(lift2); [max_lift1,idx_s1] = max(lift1);
+[max_v2,idx_v2] = max(abs(v2));  [max_v1,idx_v1] = max(abs(v1));
+[max_a2,idx_a2] = max(abs(a2));  [max_a1,idx_a1] = max(abs(a1));
 
-% Find peak values and their positions
-[max_s_low,    idx_s_low]    = max(s_low_num);
-[max_s_high,   idx_s_high]   = max(s_high_num);
-[max_v_low,    idx_v_low]    = max(abs(v_low_num));
-[max_v_high,   idx_v_high]   = max(abs(v_high_num));
-[max_a_low,    idx_a_low]    = max(abs(a_low_num));
-[max_a_high,   idx_a_high]   = max(abs(a_high_num));
-
-[max_sv_low,   idx_sv_low]   = max(abs(s_valve_low));
-[max_sv_high,  idx_sv_high]  = max(abs(s_valve_high));
-[max_vv_low,   idx_vv_low]   = max(abs(v_valve_low));
-[max_vv_high,  idx_vv_high]  = max(abs(v_valve_high));
-[max_av_low,   idx_av_low]   = max(abs(a_valve_low));
-[max_av_high,  idx_av_high]  = max(abs(a_valve_high));
-
-% Corresponding angles
-angle_mat = @(idx) theta_deg(idx);
-
-fprintf('\n%s\n', repmat('=', 1, 65));
-fprintf('  CAM PROFILE ANALYSIS @ 1000 RPM\n');
-fprintf('%s\n', repmat('=', 1, 65));
-
-fprintf('\n  FOLLOWER MOTION (Low-Lift start @ 100° High-Lift start @ 130°) \n');
-fprintf('  %s\n', repmat('-', 1, 61));
-fprintf('  %-20s  %12s  %12s  %10s\n', 'Parameter', 'Low-Lift', 'High-Lift', 'Angle (°)');
-fprintf('  %s\n', repmat('-', 1, 61));
-fprintf('  Max Displacement    %10.3f mm  %10.3f mm   [%.1f° / %.1f°]\n', ...
-    max_s_low*1e3, max_s_high*1e3, angle_mat(idx_s_low), angle_mat(idx_s_high));
-fprintf('  Max Velocity        %10.4f m/s %10.4f m/s  [%.1f° / %.1f°]\n', ...
-    max_v_low, max_v_high, angle_mat(idx_v_low), angle_mat(idx_v_high));
-fprintf('  Max Acceleration    %10.1f m/s² %10.1f m/s² [%.1f° / %.1f°]\n', ...
-    max_a_low, max_a_high, angle_mat(idx_a_low), angle_mat(idx_a_high));
-
-fprintf('\n  VALVE MOTION \n');
-fprintf('  %s\n', repmat('-', 1, 61));
-fprintf('  Max Displacement    %10.3f mm  %10.3f mm   [%.1f° / %.1f°]\n', ...
-    max_sv_low*1e3, max_sv_high*1e3, angle_mat(idx_sv_low), angle_mat(idx_sv_high));
-fprintf('  Max Velocity        %10.4f m/s %10.4f m/s  [%.1f° / %.1f°]\n', ...
-    max_vv_low, max_vv_high, angle_mat(idx_vv_low), angle_mat(idx_vv_high));
-fprintf('  Max Acceleration    %10.1f m/s² %10.1f m/s² [%.1f° / %.1f°]\n', ...
-    max_av_low, max_av_high, angle_mat(idx_av_low), angle_mat(idx_av_high));
-fprintf('\n%s\n\n', repmat('=', 1, 65));
+fprintf('\nCAM PROFILE ANALYSIS @ 1000 RPM\n');
+fprintf('-------------------------------------------\n');
+fprintf('Follower Max Lift: Lobe2 %.3f mm @ %.1f°, Lobe1 %.3f mm @ %.1f°\n',...
+    max_lift2*1e3,theta_grid(idx_s2),max_lift1*1e3,theta_grid(idx_s1));
+fprintf('Follower Max Velocity: Lobe2 %.4f m/s, Lobe1 %.4f m/s\n',max_v2,max_v1);
+fprintf('Follower Max Accel:    Lobe2 %.1f m/s², Lobe1 %.1f m/s²\n',max_a2,max_a1);
+fprintf('Valve Max Lift: Lobe2 %.3f mm, Lobe1 %.3f mm\n',...
+    max(abs(s_valve2))*1e3,max(abs(s_valve1))*1e3);
+fprintf('Valve Max Velocity: Lobe2 %.4f m/s, Lobe1 %.4f m/s\n',...
+    max(abs(v_valve2)),max(abs(v_valve1)));
+fprintf('Valve Max Accel:    Lobe2 %.1f m/s², Lobe1 %.1f m/s²\n',...
+    max(abs(a_valve2)),max(abs(a_valve1)));
