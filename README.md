@@ -1,22 +1,42 @@
-# Cycloidal Motion Cam Profile Analysis
+# Two Independent Cam Lobes Analysis
 
-This MATLAB script analyzes the kinematics (displacement, velocity, and acceleration) of a cam-follower system using a cycloidal motion profile. It is configured for a valve system with both Low-Lift and High-Lift modes.
+This MATLAB script generates **two independent cam lobes** with separate elliptical profiles sharing a common base circle, then performs complete **kinematic/dynamic analysis** of follower and valve motion at 1000 RPM.
 
 ## Features
 
-- Calculates follower and valve motion based on cycloidal rise and return equations.
-- Generates plots for displacement, velocity, and acceleration for both follower and valve.
-- Compares Low-Lift and High-Lift profiles.
-- Outputs a summary of maximum kinematic values and their corresponding cam angles.
+- Generates two cam lobes with **different profiles** (Lobe 1: ±64.6°, Lobe 2: ±53.1°)
+- **Geometric tangent construction** from base circle to ellipse
+- Full **360° lift curves** for both lobes
+- Complete **follower + valve dynamics** (displacement, velocity, acceleration)
+- **Rocker arm ratio** (37.4/38.3) applied to valve motion
+- Automatic plotting + **summary table** of maximum values
 
 ## How to Run
 
-1.  Open `marchinery_s.m` in MATLAB.
-2.  Adjust parameters in the "ค่าคงที่และพารามิเตอร์" section if needed (e.g., `L_low`, `L_high`, `omega_val`).
-3.  Run the script. The plots will be generated, and a summary table will be printed in the Command Window.
+1. Open `cam_lobes_analysis.m` in MATLAB
+2. Run the script (all plots and analysis auto-generated)
+3. Adjust parameters in the top sections if needed:
+   - `R_base`: Base circle radius (20 mm)
+   - `a1,b1,a2,b2`: Ellipse dimensions for each lobe
+   - `theta_start1/2`: Angular span for each lobe
+   - `omega_val`: Engine speed (1000 RPM default)
+   - `ratio`: Rocker arm ratio
 
-## Analysis Result Plot
+## Parameter Summary
 
-The following plot shows the displacement, velocity, and acceleration for both the follower and the valve in Low-Lift and High-Lift modes at 1000 rpm.
+| Parameter    | Lobe 1   | Lobe 2   | Unit |
+|--------------|----------|----------|------|
+| Angular Span | ±64.6°   | ±53.1°   | deg  |
+| Ellipse a    | 10 mm    | 5 mm     | mm   |
+| Ellipse b    | 5 mm     | 5 mm     | mm   |
+| Base Circle  | 20 mm    | 20 mm    | mm   |
+
+## Generated Plots
+
+1. **Cam Geometry**: Lobe profiles (green = Lobe 1, cyan = Lobe 2)
+2. **Lift vs Cam Angle**: Complete 360° profiles for both lobes
+3. **6-Panel Dynamics**: Follower/valve displacement, velocity, acceleration
+
+## Sample Output @ 1000 RPM
 
 ![Cam Analysis Plot](cam_analysis.png)
