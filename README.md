@@ -13,7 +13,7 @@ This MATLAB script generates **two independent cam lobes** with separate ellipti
 
 ## How to Run
 
-1. Open `cam_lobes_analysis.m` in MATLAB
+1. Open `marchinery_s.m` in MATLAB
 2. Run the script (all plots and analysis auto-generated)
 3. Adjust parameters in the top sections if needed:
    - `R_base`: Base circle radius (20 mm)
